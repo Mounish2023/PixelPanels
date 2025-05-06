@@ -1,0 +1,14 @@
+fastapi
+uvicorn
+openai
+python-multipart
+pillow
+pydantic
+httpx
+python-dotenv
+loguru
+jinja2
+pydantic-settings
+opencv-python-headless
+moviepy
+numpy

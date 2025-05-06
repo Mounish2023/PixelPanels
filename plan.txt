@@ -1,0 +1,27 @@
+1. write a short story based on the given prompt
+2. Breakdown the story into 10 parts with a start, middle and end
+3. convert each part into a pixel art using image generation tool of openai
+4. create a comic book by collaging the pixel art and adding text
+5. Have a voice over of the story - ai or human
+6. create the final output by collaging the comic book and the voice over
+7. Share the final output
+
+Backend:
+1. Create a backend using python - fastapi - to handle the api calls
+    a. gets the user prompt
+    b. calls the functions to generate the story, pixel art, comic book, voice over and final output
+    c. returns the final output to the user interface
+2. Create a user interface using Vue - to handle the user interface
+    a. gets the user prompt
+    b. calls the backend to generate the final output
+    c. displays the final output to the user
+
+
+3. Create a function to generate the story using openai
+4. Create a function to break down the story into 10 parts with a start, middle and end
+5. Create a function to convert each part into a pixel art using image generation tool of openai
+6. Create a function to create a comic book by collaging the pixel art and adding text
+7. Create a function to have a voice over of the story - ai or human
+8. Create a function to create the final output by collaging the comic book and the voice over
+
+#2. Create a database using sqlite - to store the prompt, story, pixel art, comic book, voice over and final output

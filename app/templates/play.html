@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }}</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <style>
+        .slide {
+            display: none;
+            width: 100%;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .slide.active {
+            display: block;
+        }
+        .slide img {
+            width: 100%;
+            height: auto;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .controls {
+            display: flex;
+            justify-content: center;
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+        .indicator {
+            height: 10px;
+            width: 10px;
+            background-color: #bbb;
+            border-radius: 50%;
+            display: inline-block;
+            margin: 0 5px;
+            cursor: pointer;
+        }
+        .indicator.active {
+            background-color: #4F46E5;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen py-8">
+    <div class="container mx-auto px-4">
+        <h1 class="text-3xl font-bold text-center mb-8">{{ title }}</h1>
+        
+        <div class="slide-container">
+            {% if panel_urls %}
+                {% for url in panel_urls %}
+                    <div class="slide {% if loop.first %}active{% endif %}">
+                        <img src="{{ url }}" alt="Comic Panel {{ loop.index }}">
+                    </div>
+                {% endfor %}
+            {% else %}
+                <div class="text-center text-gray-500">No panels available yet. Please check back later.</div>
+            {% endif %}
+        </div>
+
+        <div class="controls">
+            <button id="prevBtn" class="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300">Previous</button>
+            <button id="playPauseBtn" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">
+                <span id="playIcon">▶</span> Play Voice Over
+            </button>
+            <button id="nextBtn" class="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300">Next</button>
+        </div>
+
+        <div class="flex justify-center mt-4" id="indicators">
+            {% if panel_urls %}
+                {% for _ in panel_urls %}
+                    <span class="indicator {% if loop.first %}active{% endif %}" data-index="{{ loop.index0 }}"></span>
+                {% endfor %}
+            {% endif %}
+        </div>
+    </div>
+
+    <audio id="audioPlayer" preload="auto">
+        {% if audio_url %}
+            <source src="{{ audio_url }}" type="audio/mpeg">
+        {% endif %}
+        Your browser does not support the audio element.
+    </audio>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const slides = document.querySelectorAll('.slide');
+            const indicators = document.querySelectorAll('.indicator');
+            const prevBtn = document.getElementById('prevBtn');
+            const nextBtn = document.getElementById('nextBtn');
+            const playPauseBtn = document.getElementById('playPauseBtn');
+            const playIcon = document.getElementById('playIcon');
+            const audioPlayer = document.getElementById('audioPlayer');
+            let currentSlide = 0;
+            let isPlaying = false;
+
+            function showSlide(index) {
+                slides.forEach(slide => slide.classList.remove('active'));
+                indicators.forEach(indicator => indicator.classList.remove('active'));
+                
+                currentSlide = (index + slides.length) % slides.length;
+                slides[currentSlide].classList.add('active');
+                indicators[currentSlide].classList.add('active');
+            }
+
+
+            function nextSlide() {
+                showSlide(currentSlide + 1);
+            }
+
+            function prevSlide() {
+                showSlide(currentSlide - 1);
+            }
+
+
+            function togglePlayPause() {
+                if (isPlaying) {
+                    audioPlayer.pause();
+                    playIcon.textContent = '▶';
+                } else {
+                    audioPlayer.play().catch(e => console.error('Audio playback failed:', e));
+                    playIcon.textContent = '❚❚';
+                }
+                isPlaying = !isPlaying;
+            }
+
+
+            // Event listeners
+            nextBtn.addEventListener('click', nextSlide);
+            prevBtn.addEventListener('click', prevSlide);
+            playPauseBtn.addEventListener('click', togglePlayPause);
+
+            // Keyboard navigation
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'ArrowRight') nextSlide();
+                if (e.key === 'ArrowLeft') prevSlide();
+                if (e.key === ' ') {
+                    e.preventDefault();
+                    togglePlayPause();
+                }
+            });
+
+            // Indicator clicks
+            indicators.forEach((indicator, index) => {
+                indicator.addEventListener('click', () => showSlide(index));
+            });
+
+            // Auto-advance slides when audio is playing
+            audioPlayer.addEventListener('timeupdate', function() {
+                if (audioPlayer.duration > 0) {
+                    const progress = (audioPlayer.currentTime / audioPlayer.duration) * 100;
+                    const slideIndex = Math.floor((progress / 100) * slides.length);
+                    if (slideIndex !== currentSlide) {
+                        showSlide(slideIndex);
+                    }
+                }
+            });
+        });
+    </script>
+</body>
+</html>
