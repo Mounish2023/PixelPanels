@@ -34,7 +34,9 @@ jobs: Dict[str, Dict[str, Any]] = {}
 @router.post("/generate", response_model=ComicResponse)
 async def start_comic_generation(
     story_prompt: StoryPrompt,
-    background_tasks: BackgroundTasks
+    user_id: int,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db)
 ) -> ComicResponse:
     """Start the comic generation process.
     
@@ -43,6 +45,22 @@ async def start_comic_generation(
     try:
         # Generate a unique ID for this job
         job_id = str(uuid4())
+        
+        # Create comic entry in database
+        new_comic = Comic(
+            id=job_id,
+            title=story_prompt.prompt[:100],  # First 100 chars as title
+            prompt=story_prompt.prompt,
+            style=story_prompt.style,
+            status=ComicStatus.PENDING,
+            user_id=user_id,
+            metadata={
+                "character_names": story_prompt.character_names,
+                "num_panels": story_prompt.num_panels
+            }
+        )
+        db.add(new_comic)
+        db.commit()
         
         # Initialize job progress
         jobs[job_id] = {
@@ -74,12 +92,20 @@ async def start_comic_generation(
         )
 
 @router.get("/status/{job_id}", response_model=ComicResponse)
-async def check_status(job_id: str) -> ComicResponse:
+async def check_status(job_id: str, db: Session = Depends(get_db)) -> ComicResponse:
     """Check the status of a comic generation job."""
-    if job_id not in jobs:
+    comic = db.query(Comic).filter(Comic.id == job_id).first()
+    if not comic:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Job {job_id} not found"
+        )
+    
+    if job_id not in jobs:
+        return ComicResponse(
+            success=True,
+            message="Job status retrieved",
+            data={"status": comic.status}
         )
     
     job = jobs[job_id]
@@ -258,7 +284,7 @@ async def create_video_from_panels(job_id: str, job_data: dict):
         logger.error(f"Error creating video: {str(e)}")
         raise
 
-async def process_comic_generation(job_id: str, story_prompt: StoryPrompt) -> None:
+async def process_comic_generation(job_id: str, story_prompt: StoryPrompt, db: Session) -> None:
     """Process the comic generation in the background.
     
     Note: All generated files are preserved and never automatically deleted.
@@ -364,7 +390,17 @@ async def process_comic_generation(job_id: str, story_prompt: StoryPrompt) -> No
         with open(audio_path, "wb") as f:
             f.write(audio_data)
         
-        # Update job with final URLs
+        # Update database and job progress
+        comic = db.query(Comic).filter(Comic.id == job_id).first()
+        comic.status = ComicStatus.COMPLETED
+        comic.metadata.update({
+            "story": story,
+            "comic_url": f"/api/v1/comics/files/{job_id}/output/comic.png",
+            "audio_url": f"/api/v1/comics/files/{job_id}/output/voiceover.mp3",
+            "final_url": f"/comic/{job_id}"
+        })
+        db.commit()
+        
         jobs[job_id].update({
             "status": ComicStatus.COMPLETED,
             "message": "Comic generation completed!",
