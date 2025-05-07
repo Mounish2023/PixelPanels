@@ -5,7 +5,6 @@ import json
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 from uuid import uuid4
-
 from fastapi import APIRouter, HTTPException, BackgroundTasks, status, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
@@ -128,6 +127,54 @@ async def get_comic_data(job_id: str):
             "audio_url": job.get("audio_url", "")
         }
     }
+
+
+@router.get(
+    "/panel/{job_id}/{panel_index}",
+    response_model=ComicResponse,
+    summary="Fetch a single panel and its neighbors",
+)
+async def get_panel(job_id: str, panel_index: int):
+    """
+    Return the specified panel image URL plus the next/previous indices.
+    """
+    # 1) job exists?
+    if job_id not in jobs:
+        raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
+
+    panels = jobs[job_id].get("panels", [])
+    total = len(panels)
+
+    # 2) valid index?
+    if panel_index < 1 or panel_index > total:
+        raise HTTPException(
+            status_code=400,
+            detail=f"panel_index must be between 1 and {total}"
+        )
+
+    # 3) grab it
+    panel = panels[panel_index - 1]
+    panel_url = panel.get("image_url") or panel.get("image_path")
+    if not panel_url:
+        raise HTTPException(status_code=500, detail="Panel URL missing")
+
+    # 4) compute prev / next
+    prev_idx: Optional[int] = panel_index - 1 if panel_index > 1 else None
+    next_idx: Optional[int] = panel_index + 1 if panel_index < total else None
+
+    # 5) return via ComicResponse
+    return ComicResponse(
+        success=True,
+        message="Panel fetched",
+        data={
+            "job_id": job_id,
+            "panel_index": panel_index,
+            "panel_url": panel_url,
+            "prev_index": prev_idx,
+            "next_index": next_idx,
+            "total_panels": total,
+        },
+    )
 
 @router.get("/share/{job_id}", response_model=ComicResponse)
 async def get_share_data(job_id: str):
