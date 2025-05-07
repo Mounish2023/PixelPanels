@@ -7,7 +7,7 @@ from fastapi.responses import JSONResponse
 from loguru import logger
 
 from app.config import settings
-from app.routes import comic_routes, interaction_routes
+from app.routes import comic_routes, interaction_routes, explore_routes
 
 # Configure logging
 logger.add("app.log", rotation="500 MB", level="INFO")
@@ -41,6 +41,12 @@ def create_app() -> FastAPI:
         interaction_routes.router,
         prefix="/api/v1/interactions",
         tags=["interactions"]
+    )
+    
+    app.include_router(
+        explore_routes.router,
+        prefix="/api/v1/explore",
+        tags=["explore"]
     )
     
     # Health check endpoint

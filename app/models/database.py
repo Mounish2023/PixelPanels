@@ -25,6 +25,9 @@ class Comic(Base):
     created_at = Column(DateTime, server_default=func.now())
     metadata = Column(JSON)
     user_id = Column(Integer, ForeignKey("users.id"))
+    is_deleted = Column(Boolean, default=False)
+    view_count = Column(Integer, default=0)
+    search_vector = Column(String)  # For full-text search
     
     creator = relationship("User", back_populates="comics")
     panels = relationship("Panel", back_populates="comic")
