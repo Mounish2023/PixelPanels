@@ -28,9 +28,6 @@ import shutil
 
 router = APIRouter()
 
-# Set up templates
-templates = Jinja2Templates(directory=os.path.join(settings.BASE_DIR, "templates"))
-
 # In-memory storage for job progress (in production, use a database)
 jobs: Dict[str, Dict[str, Any]] = {}
 
