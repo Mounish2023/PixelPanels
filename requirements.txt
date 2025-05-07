@@ -12,3 +12,6 @@ pydantic-settings
 opencv-python-headless
 moviepy
 numpy
+alembic
+psycopg2-binary
+sqlalchemy
