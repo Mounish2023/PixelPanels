@@ -36,6 +36,7 @@ class Comic(Base):
     is_deleted: Mapped[bool] = mapped_column(Boolean, default=False)
     story_search_vector: Mapped[Optional[str]] = mapped_column(String)
     view_count: Mapped[int] = mapped_column(Integer, default=0)
+    like_count: Mapped[int] = mapped_column(Integer, default=0)
     search_vector: Mapped[Optional[str]] = mapped_column(String)
 
     creator: Mapped[User] = relationship("User", back_populates="comics")

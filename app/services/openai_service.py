@@ -6,7 +6,7 @@ import openai
 from loguru import logger
 from jinja2 import Template
 from app.config import settings
-from app.models.comic_models import Panel, ComicStatus
+
 import base64
 
 # client = OpenAI()
