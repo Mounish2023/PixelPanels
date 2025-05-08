@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     # Application settings
     APP_NAME: str = "PixelPanels"
     DEBUG: bool = os.getenv("DEBUG", "False").lower() in ("true", "1", "t")
-    DATABASE_URL: str = os.getenv("DATABASE_URL", "postgresql://user:password@localhost:5432/pixelpanels")
+    DATABASE_URL: str = os.getenv("DATABASE_URL", "postgresql+asyncpg://user:password@localhost:5432/pixelpanels")
     
     # API settings
     API_V1_STR: str = "/api/v1"
