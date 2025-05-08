@@ -13,8 +13,6 @@ opencv-python-headless
 moviepy
 numpy
 alembic
-psycopg2-binary
 sqlalchemy[asyncio]
-replit-object-storage
-replit-object-storage
+asyncpg
 azure-storage-blob

@@ -20,26 +20,26 @@ class StoryPrompt(BaseModel):
     character_names: Optional[List[str]] = Field(None, description="List of character names to include")
     num_panels: int = Field(10, description="Number of panels in the comic", ge=1, le=20)
 
-class ComicProgress(BaseModel):
-    """Response model for comic generation progress."""
-    id: str
-    status: ComicStatus
-    current_step: int
-    total_steps: int
-    message: str
-    story: Optional[str] = None
-    panels: Optional[List[Panel]] = None
-    comic_url: Optional[str] = None
-    audio_url: Optional[str] = None
-    final_url: Optional[str] = None
-    created_at: datetime = Field(default_factory=datetime.utcnow)
-    updated_at: datetime = Field(default_factory=datetime.utcnow)
+# class ComicProgress(BaseModel):
+#     """Response model for comic generation progress."""
+#     id: str
+#     status: ComicStatus
+#     current_step: int
+#     total_steps: int
+#     message: str
+#     story: Optional[str] = None
+#     panels: Optional[List[Panel]] = None
+#     comic_url: Optional[str] = None
+#     audio_url: Optional[str] = None
+#     final_url: Optional[str] = None
+#     created_at: datetime = Field(default_factory=datetime.utcnow)
+#     updated_at: datetime = Field(default_factory=datetime.utcnow)
 
-    class Config:
-        json_encoders = {
-            datetime: lambda v: v.isoformat(),
-        }
-        use_enum_values = True
+#     class Config:
+#         json_encoders = {
+#             datetime: lambda v: v.isoformat(),
+#         }
+#         use_enum_values = True
 
 class ComicResponse(BaseModel):
     """Response model for comic generation result."""

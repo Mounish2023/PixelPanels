@@ -6,17 +6,13 @@ from pathlib import Path
 from typing import Dict, Any, List, Optional
 from uuid import uuid4
 from fastapi import APIRouter, HTTPException, BackgroundTasks, status, Request, Depends
-from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
-from fastapi.staticfiles import StaticFiles
 from loguru import logger
 import os
-
+from datetime import datetime
 from sqlalchemy.exc import NoResultFound
 
 from app.models.comic_models import (
     StoryPrompt,
-    ComicProgress,
     ComicResponse,
     ComicStatus
 )
@@ -24,10 +20,6 @@ from app.models.database import Comic, Panel
 from app.database import get_db
 from app.services.openai_service import OpenAIService
 from app.services.image_service import ImageService
-from app.utils.file_utils import create_project_dirs, cleanup_project
-from app.config import settings
-from fastapi.responses import FileResponse
-import shutil
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
@@ -71,8 +63,7 @@ async def start_comic_generation(
         background_tasks.add_task(
             process_comic_generation,
             job_id=job_id,
-            story_prompt=story_prompt,
-            db=db
+            story_prompt=story_prompt
         )
         
         return ComicResponse(
@@ -90,7 +81,9 @@ async def start_comic_generation(
 @router.get("/status/{job_id}", response_model=ComicResponse)
 async def check_status(job_id: str, db: AsyncSession = Depends(get_db)) -> ComicResponse:
     """Check the status of a comic generation job."""
-    comic = await db.query(Comic).filter(Comic.id == job_id).first()
+    
+    comic_result = await db.execute(select(Comic).filter(Comic.id == job_id))
+    comic = comic_result.scalars().first()
     if not comic:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -209,18 +202,16 @@ async def process_comic_generation(job_id: str, story_prompt: StoryPrompt) -> No
             "audio_url": audio_blob_url,
             "completed_at": datetime.utcnow().isoformat()
         })
-        db.commit()
+        await db.commit()
         
         # Update database and job progress
-        comic = db.query(Comic).filter(Comic.id == job_id).first()
+        # comic_result = await db.execute(select(Comic).filter(Comic.id == job_id))
+        # comic = comic_result.scalars().first()
         comic.status = ComicStatus.COMPLETED
         comic.data_info.update({
-            "story": story,
-            "comic_url": f"/api/v1/comics/files/{job_id}/output/comic.png",
-            "audio_url": f"/api/v1/comics/files/{job_id}/output/voiceover.mp3",
-            "final_url": f"/comic/{job_id}"
+            "story": story
         })
-        db.commit()
+        await db.commit()
         
         
     except Exception as e:

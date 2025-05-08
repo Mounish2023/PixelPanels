@@ -1,8 +1,9 @@
 from datetime import datetime
 from typing import List, Optional
 
-from sqlalchemy import String, Integer, DateTime, JSON, ForeignKey, Boolean, func
+from sqlalchemy import String, Integer, DateTime, JSON, ForeignKey, Boolean, func, Index
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
+
 
 
 class Base(DeclarativeBase):
