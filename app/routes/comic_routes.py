@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 from uuid import uuid4
-from fastapi import APIRouter, HTTPException, BackgroundTasks, status, Request
+from fastapi import APIRouter, HTTPException, BackgroundTasks, status, Request, Depends
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
@@ -19,12 +19,15 @@ from app.models.comic_models import (
     ComicStatus,
     Panel
 )
+from app.models.database import Comic
+from app.database import get_db
 from app.services.openai_service import OpenAIService
 from app.services.image_service import ImageService
 from app.utils.file_utils import create_project_dirs, cleanup_project
 from app.config import settings
 from fastapi.responses import FileResponse
 import shutil
+from sqlalchemy.orm import Session
 
 router = APIRouter()
 
@@ -76,7 +79,8 @@ async def start_comic_generation(
         background_tasks.add_task(
             process_comic_generation,
             job_id=job_id,
-            story_prompt=story_prompt
+            story_prompt=story_prompt,
+            db=db
         )
         
         return ComicResponse(
@@ -101,33 +105,11 @@ async def check_status(job_id: str, db: Session = Depends(get_db)) -> ComicRespo
             detail=f"Job {job_id} not found"
         )
     
-    if job_id not in jobs:
-        return ComicResponse(
-            success=True,
-            message="Job status retrieved",
-            data={"status": comic.status}
-        )
-    
-    job = jobs[job_id]
-    
-    # Create response model
-    progress = ComicProgress(
-        id=job_id,
-        status=job["status"],
-        current_step=job.get("progress", 0),
-        total_steps=job.get("total_steps", 5),  # Adjust based on your steps
-        message=job["message"],
-        story=job.get("story"),
-        panels=job.get("panels", []),
-        comic_url=job.get("comic_url"),
-        audio_url=job.get("audio_url"),
-        final_url=job.get("final_url")
-    )
-    
+    # Retrieve the job status from the database
     return ComicResponse(
         success=True,
         message="Job status retrieved",
-        data=progress.dict()
+        data={"status": comic.status}  # Now only getting status from the DB
     )
 
 @router.get("/play/{job_id}", response_model=ComicResponse)
@@ -293,13 +275,13 @@ async def process_comic_generation(job_id: str, story_prompt: StoryPrompt, db: S
         # Create project directories
         base_dir, images_dir, audio_dir, output_dir = create_project_dirs(job_id)
         
-        # Update job status
-        jobs[job_id].update({
-            "status": ComicStatus.GENERATING_STORY,
-            "message": "Generating story...",
-            "progress": 1,
-            "total_steps": 5
-        })
+        # # Update job status
+        # jobs[job_id].update({
+        #     "status": ComicStatus.GENERATING_STORY,
+        #     "message": "Generating story...",
+        #     "progress": 1,
+        #     "total_steps": 5
+        # })
         
         # Step 1: Generate story
         story = await OpenAIService.generate_story(
