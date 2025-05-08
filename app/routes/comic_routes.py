@@ -220,8 +220,43 @@ async def process_comic_generation(job_id: str, story_prompt: StoryPrompt) -> No
         
 @router.get("/comics/{comic_id}/panels")
 async def get_comic_panels(comic_id: int, db: AsyncSession = Depends(get_db)):
-    """Get all panels for a comic efficiently."""
-    query = select(Panel).filter(Panel.comic_id == comic_id).order_by(Panel.sequence)
+    """Get comic data with panels and metadata for display."""
+    # Get comic with creator info in a single query
+    query = (
+        select(Comic, User.username.label("creator_name"))
+        .join(User, Comic.user_id == User.id)
+        .filter(Comic.id == comic_id)
+    )
     result = await db.execute(query)
-    panels = result.scalars().all()
-    return panels
+    comic_data = result.first()
+    
+    if not comic_data:
+        raise HTTPException(status_code=404, detail="Comic not found")
+        
+    comic = comic_data.Comic
+    creator_name = comic_data.creator_name
+    
+    # Get panels in sequence
+    panels_query = select(Panel).filter(Panel.comic_id == comic_id).order_by(Panel.sequence)
+    panels_result = await db.execute(panels_query)
+    panels = panels_result.scalars().all()
+    
+    # Format response
+    return {
+        "comic_info": {
+            "title": comic.title,
+            "creator": creator_name,
+            "like_count": comic.like_count,
+            "view_count": comic.view_count,
+            "audio_url": comic.data_info.get("audio_url") if comic.data_info else None,
+        },
+        "panels": [
+            {
+                "sequence": panel.sequence,
+                "image_url": panel.image_url,
+                "text_content": panel.text_content,
+            }
+            for panel in panels
+        ],
+        "total_panels": len(panels)
+    }
