@@ -16,7 +16,7 @@ from app.models.comic_models import (
     ComicResponse,
     ComicStatus
 )
-from app.models.database import Comic, Panel
+from app.models.database import Comic, Panel, User
 from app.database import get_db
 from app.services.openai_service import OpenAIService
 from app.services.image_service import ImageService

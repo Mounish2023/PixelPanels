@@ -57,7 +57,6 @@ class Panel(Base):
     text_content: Mapped[Optional[str]] = mapped_column(String(500))
     description: Mapped[Optional[str]] = mapped_column(String(1000))
     image_url: Mapped[Optional[str]] = mapped_column(String(255))
-    audio_url: Mapped[Optional[str]] = mapped_column(String(255))
 
     comic: Mapped[Comic] = relationship("Comic", back_populates="panels")
 
