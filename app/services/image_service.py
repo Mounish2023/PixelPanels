@@ -7,6 +7,8 @@ from PIL import Image, ImageDraw, ImageFont
 from loguru import logger
 import base64
 import textwrap
+import asyncio
+
 
 class ImageService:
     """Service for handling image processing operations."""
