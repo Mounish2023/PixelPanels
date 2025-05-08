@@ -20,13 +20,6 @@ class StoryPrompt(BaseModel):
     character_names: Optional[List[str]] = Field(None, description="List of character names to include")
     num_panels: int = Field(10, description="Number of panels in the comic", ge=1, le=20)
 
-class Panel(BaseModel):
-    """Represents a single panel in the comic."""
-    panel_number: int
-    image_description: str
-    panel_text: str
-    image_url: Optional[str] = None
-
 class ComicProgress(BaseModel):
     """Response model for comic generation progress."""
     id: str

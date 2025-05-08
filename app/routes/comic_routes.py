@@ -18,10 +18,9 @@ from app.models.comic_models import (
     StoryPrompt,
     ComicProgress,
     ComicResponse,
-    ComicStatus,
-    Panel
+    ComicStatus
 )
-from app.models.database import Comic
+from app.models.database import Comic, Panel
 from app.database import get_db
 from app.services.openai_service import OpenAIService
 from app.services.image_service import ImageService
@@ -178,6 +177,7 @@ async def process_comic_generation(job_id: str, story_prompt: StoryPrompt) -> No
             blob_url = await ImageService.upload_to_blob_storage(image_data, image_path)
             
             return Panel(
+                id = str(uuid4()),
                 comic_id=job_id,
                 sequence=index+1,
                 text_content=panel_data["panel_text"],
