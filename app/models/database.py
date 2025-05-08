@@ -23,9 +23,12 @@ class Comic(Base):
     style = Column(String(50))
     status = Column(String(50), default="pending")
     created_at = Column(DateTime, server_default=func.now())
-    metadata = Column(JSON)
+    story_text = Column(String(5000))  # Store the generated story
+    metadata = Column(JSON)  # Keep metadata like image/audio URLs from Azure
     user_id = Column(Integer, ForeignKey("users.id"))
     is_deleted = Column(Boolean, default=False)
+    # Add text search vector
+    story_search_vector = Column(String)  # For full-text search capabilities
     view_count = Column(Integer, default=0)
     search_vector = Column(String)  # For full-text search
     
@@ -40,9 +43,10 @@ class Panel(Base):
     id = Column(Integer, primary_key=True)
     comic_id = Column(Integer, ForeignKey("comics.id"))
     sequence = Column(Integer, nullable=False)
-    image_url = Column(String(255))
-    text_content = Column(String(500))
-    audio_url = Column(String(255))
+    text_content = Column(String(500))  # Store panel text in database
+    description = Column(String(1000))  # Store image generation prompt
+    image_url = Column(String(255))     # Store Azure blob URL for image
+    audio_url = Column(String(255))     # Store Azure blob URL for audio
     
     comic = relationship("Comic", back_populates="panels")
 
