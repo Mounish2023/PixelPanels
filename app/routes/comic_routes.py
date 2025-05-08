@@ -166,30 +166,34 @@ async def process_comic_generation(job_id: str, story_prompt: StoryPrompt) -> No
             )
             
         
-        # Generate images for each panel
-        panels = []
-        for i, panel_data in enumerate(panels_data):
+        # Generate images for each panel in parallel
+        async def process_panel(panel_data, index):
             # Generate pixel art
             image_data = await OpenAIService.generate_pixel_art(
                 description=panel_data["image_description"]
             )
             
             # Save to Azure Blob Storage
-            image_path = f"comics/{job_id}/panel_{i+1}.png"
+            image_path = f"comics/{job_id}/panel_{index+1}.png"
             blob_url = await ImageService.upload_to_blob_storage(image_data, image_path)
             
-            
-            # Create panel in database
-            panel = Panel(
+            return Panel(
                 comic_id=job_id,
-                sequence=i+1,
+                sequence=index+1,
                 text_content=panel_data["panel_text"],
                 description=panel_data["image_description"],
                 image_url=blob_url
             )
-            db.add(panel)
-            panels.append(panel)
-            db.commit()
+
+        # Process all panels in parallel
+        panel_tasks = [process_panel(panel_data, i) for i, panel_data in enumerate(panels_data)]
+        panels = await asyncio.gather(*panel_tasks)
+        
+        # Bulk insert panels into database
+        db.add_all(panels)
+        await db.commit()
+        for panel in panels:
+            await db.refresh(panel)
             
         # Generate voiceover
         audio_data = await OpenAIService.generate_voiceover(story)
