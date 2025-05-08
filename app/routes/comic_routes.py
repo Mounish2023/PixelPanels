@@ -275,20 +275,77 @@ async def process_comic_generation(job_id: str, story_prompt: StoryPrompt, db: S
         # Create project directories
         base_dir, images_dir, audio_dir, output_dir = create_project_dirs(job_id)
         
-        # # Update job status
-        # jobs[job_id].update({
-        #     "status": ComicStatus.GENERATING_STORY,
-        #     "message": "Generating story...",
-        #     "progress": 1,
-        #     "total_steps": 5
-        # })
-        
         # Step 1: Generate story
         story = await OpenAIService.generate_story(
             prompt=story_prompt.prompt,
             style=story_prompt.style,
             character_names=story_prompt.character_names
         )
+        
+        # Update database with story
+        comic = db.query(Comic).filter(Comic.id == job_id).first()
+        comic.story_text = story
+        comic.status = ComicStatus.GENERATING_IMAGES
+        db.commit()
+        
+        # Step 2: Break story into panels
+        panels_data = OpenAIService.break_story_into_panels(
+            story=story,
+            num_panels=story_prompt.num_panels
+        )
+        
+        # Update database with panel data
+        comic.data_info['panels_data'] = panels_data
+        db.commit()
+        
+        # Generate images for each panel
+        panels = []
+        for i, panel_data in enumerate(panels_data):
+            # Generate pixel art
+            image_data = await OpenAIService.generate_pixel_art(
+                description=panel_data["image_description"]
+            )
+            
+            # Save to Azure Blob Storage
+            image_path = f"comics/{job_id}/panel_{i+1}.png"
+            blob_url = await ImageService.upload_to_blob_storage(image_data, image_path)
+            
+            # Save locally too
+            local_path = images_dir / f"panel_{i+1}.png"
+            with open(local_path, "wb") as f:
+                f.write(image_data)
+            
+            # Create panel in database
+            panel = Panel(
+                comic_id=job_id,
+                sequence=i+1,
+                text_content=panel_data["panel_text"],
+                description=panel_data["image_description"],
+                image_url=blob_url
+            )
+            db.add(panel)
+            panels.append(panel)
+            db.commit()
+            
+        # Generate voiceover
+        audio_data = await OpenAIService.generate_voiceover(story)
+        
+        # Save audio to Azure Blob Storage
+        audio_path = f"comics/{job_id}/voiceover.mp3"
+        audio_blob_url = await ImageService.upload_to_blob_storage(audio_data, audio_path)
+        
+        # Save locally too
+        local_audio_path = audio_dir / "voiceover.mp3"
+        with open(local_audio_path, "wb") as f:
+            f.write(audio_data)
+            
+        # Update comic with final data
+        comic.status = ComicStatus.COMPLETED
+        comic.data_info.update({
+            "audio_url": audio_blob_url,
+            "completed_at": datetime.utcnow().isoformat()
+        })
+        db.commit()
         
         # Update job with story
         jobs[job_id].update({
