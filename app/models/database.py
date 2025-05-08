@@ -20,11 +20,12 @@ class Comic(Base):
     id = Column(Integer, primary_key=True)
     title = Column(String(100), nullable=False)
     prompt = Column(String(500), nullable=False)
-    style = Column(String(50))
+    prompt_data_info = Column(JSON)  # Store additional configurations set by the user for prompt
+    topic = Column(String(50)) # can be categorized as "educational", "health", "ethics" etc.
     status = Column(String(50), default="pending")
     created_at = Column(DateTime, server_default=func.now())
     story_text = Column(String(5000))  # Store the generated story
-    metadata = Column(JSON)  # Keep metadata like image/audio URLs from Azure
+    data_info = Column(JSON)  # Keep metadata like image/audio URLs from Azure
     user_id = Column(Integer, ForeignKey("users.id"))
     is_deleted = Column(Boolean, default=False)
     # Add text search vector
