@@ -1,72 +1,79 @@
+from datetime import datetime
+from typing import List, Optional
 
-from sqlalchemy import Column, Integer, String, ForeignKey, DateTime, JSON, Table, func, Boolean
-from sqlalchemy.orm import relationship
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy import String, Integer, DateTime, JSON, ForeignKey, Boolean, func
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
-Base = declarative_base()
+
+class Base(DeclarativeBase):
+    pass
+
 
 class User(Base):
     __tablename__ = "users"
-    
-    id = Column(Integer, primary_key=True)
-    username = Column(String(50), unique=True, nullable=False)
-    email = Column(String(100), unique=True, nullable=False)
-    created_at = Column(DateTime, server_default=func.now())
-    comics = relationship("Comic", back_populates="creator")
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    username: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
+    email: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    comics: Mapped[List["Comic"]] = relationship("Comic", back_populates="creator")
+
 
 class Comic(Base):
     __tablename__ = "comics"
-    
-    id = Column(Integer, primary_key=True)
-    title = Column(String(100), nullable=False)
-    prompt = Column(String(500), nullable=False)
-    prompt_data_info = Column(JSON)  # Store additional configurations set by the user for prompt
-    topic = Column(String(50)) # can be categorized as "educational", "health", "ethics" etc.
-    status = Column(String(50), default="pending")
-    created_at = Column(DateTime, server_default=func.now())
-    story_text = Column(String(5000))  # Store the generated story
-    data_info = Column(JSON)  # Keep metadata like image/audio URLs from Azure
-    user_id = Column(Integer, ForeignKey("users.id"))
-    is_deleted = Column(Boolean, default=False)
-    # Add text search vector
-    story_search_vector = Column(String)  # For full-text search capabilities
-    view_count = Column(Integer, default=0)
-    search_vector = Column(String)  # For full-text search
-    
-    creator = relationship("User", back_populates="comics")
-    panels = relationship("Panel", back_populates="comic")
-    likes = relationship("Like", back_populates="comic")
-    views = relationship("View", back_populates="comic")
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    title: Mapped[str] = mapped_column(String(100), nullable=False)
+    prompt: Mapped[str] = mapped_column(String(500), nullable=False)
+    prompt_data_info: Mapped[Optional[dict]] = mapped_column(JSON)
+    topic: Mapped[Optional[str]] = mapped_column(String(50))
+    status: Mapped[str] = mapped_column(String(50), default="pending")
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    story_text: Mapped[Optional[str]] = mapped_column(String(5000))
+    data_info: Mapped[Optional[dict]] = mapped_column(JSON)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    is_deleted: Mapped[bool] = mapped_column(Boolean, default=False)
+    story_search_vector: Mapped[Optional[str]] = mapped_column(String)
+    view_count: Mapped[int] = mapped_column(Integer, default=0)
+    search_vector: Mapped[Optional[str]] = mapped_column(String)
+
+    creator: Mapped[User] = relationship("User", back_populates="comics")
+    panels: Mapped[List["Panel"]] = relationship("Panel", back_populates="comic", cascade="all, delete-orphan")
+    likes: Mapped[List["Like"]] = relationship("Like", back_populates="comic", cascade="all, delete-orphan")
+    views: Mapped[List["View"]] = relationship("View", back_populates="comic", cascade="all, delete-orphan")
+
 
 class Panel(Base):
     __tablename__ = "panels"
-    
-    id = Column(Integer, primary_key=True)
-    comic_id = Column(Integer, ForeignKey("comics.id"))
-    sequence = Column(Integer, nullable=False)
-    text_content = Column(String(500))  # Store panel text in database
-    description = Column(String(1000))  # Store image generation prompt
-    image_url = Column(String(255))     # Store Azure blob URL for image
-    audio_url = Column(String(255))     # Store Azure blob URL for audio
-    
-    comic = relationship("Comic", back_populates="panels")
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    comic_id: Mapped[int] = mapped_column(ForeignKey("comics.id"), nullable=False)
+    sequence: Mapped[int] = mapped_column(Integer, nullable=False)
+    text_content: Mapped[Optional[str]] = mapped_column(String(500))
+    description: Mapped[Optional[str]] = mapped_column(String(1000))
+    image_url: Mapped[Optional[str]] = mapped_column(String(255))
+    audio_url: Mapped[Optional[str]] = mapped_column(String(255))
+
+    comic: Mapped[Comic] = relationship("Comic", back_populates="panels")
+
 
 class Like(Base):
     __tablename__ = "likes"
-    
-    id = Column(Integer, primary_key=True)
-    comic_id = Column(Integer, ForeignKey("comics.id"))
-    user_id = Column(Integer, ForeignKey("users.id"))
-    created_at = Column(DateTime, server_default=func.now())
-    
-    comic = relationship("Comic", back_populates="likes")
-    user = relationship("User")
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    comic_id: Mapped[int] = mapped_column(ForeignKey("comics.id"), nullable=False)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+    comic: Mapped[Comic] = relationship("Comic", back_populates="likes")
+    user: Mapped[User] = relationship("User")
+
 
 class View(Base):
     __tablename__ = "views"
-    
-    id = Column(Integer, primary_key=True)
-    comic_id = Column(Integer, ForeignKey("comics.id"))
-    viewed_at = Column(DateTime, server_default=func.now())
-    
-    comic = relationship("Comic", back_populates="views")
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    comic_id: Mapped[int] = mapped_column(ForeignKey("comics.id"), nullable=False)
+    viewed_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+    comic: Mapped[Comic] = relationship("Comic", back_populates="views")

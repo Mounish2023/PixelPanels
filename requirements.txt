@@ -14,4 +14,4 @@ moviepy
 numpy
 alembic
 psycopg2-binary
-sqlalchemy
+sqlalchemy[asyncio]

@@ -9,6 +9,10 @@ packages = ["ffmpeg-full", "freetype", "imagemagickBig", "lcms2", "libimagequant
 run = ["sh", "-c", "uvicorn app.main --host 0.0.0.0 --port 3000"]
 
 [[ports]]
+localPort = 3000
+externalPort = 3000
+
+[[ports]]
 localPort = 8000
 externalPort = 80
 
