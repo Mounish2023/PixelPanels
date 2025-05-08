@@ -226,3 +226,10 @@ async def process_comic_generation(job_id: str, story_prompt: StoryPrompt) -> No
     except Exception as e:
         logger.error(f"Error in comic generation: {str(e)}")
         raise
+@router.get("/comics/{comic_id}/panels")
+async def get_comic_panels(comic_id: int, db: AsyncSession = Depends(get_db)):
+    """Get all panels for a comic efficiently."""
+    query = select(Panel).filter(Panel.comic_id == comic_id).order_by(Panel.sequence)
+    result = await db.execute(query)
+    panels = result.scalars().all()
+    return panels

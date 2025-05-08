@@ -45,6 +45,9 @@ class Comic(Base):
 
 class Panel(Base):
     __tablename__ = "panels"
+    __table_args__ = (
+        Index('idx_comic_sequence', 'comic_id', 'sequence'),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     comic_id: Mapped[int] = mapped_column(ForeignKey("comics.id"), nullable=False)
