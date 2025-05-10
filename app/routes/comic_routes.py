@@ -5,25 +5,31 @@ import json
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 from uuid import uuid4
+from click import style
 from fastapi import APIRouter, HTTPException, BackgroundTasks, status, Request, Depends
 from loguru import logger
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy.exc import NoResultFound
+from sqlalchemy.sql.functions import now
 
 from app.models.comic_models import (
+    ComicProgress,
     StoryPrompt,
     ComicResponse,
     ComicStatus
 )
-from app.models.database import Comic, Panel, User
+from app.models.database import Comic, Panel, User, Like, View, Favorite, Trash,
 from app.database import get_db
 from app.services.openai_service import OpenAIService
 from app.services.image_service import ImageService
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
+
+
 router = APIRouter()
+jobs: Dict[str, ComicProgress] ={}
 
 @router.post("/generate", response_model=ComicResponse)
 async def start_comic_generation(
@@ -47,17 +53,24 @@ async def start_comic_generation(
             prompt=story_prompt.prompt,
             prompt_data_info={
                 "style": story_prompt.style, 
-                "num_panels": story_prompt.num_panels},
-            status=ComicStatus.PENDING,
+                "num_panels": story_prompt.num_panels,
+                "character_names":story_prompt.character_names},
             user_id=user_id,
-            data_info={
-                "character_names": story_prompt.character_names,
-                "num_panels": story_prompt.num_panels
-            }
+            style=story_prompt.style
         )
         db.add(new_comic)
         await db.commit()
         await db.refresh(new_comic)
+
+        jobs[job_id] = ComicProgress(
+            id=job_id,
+            status=ComicStatus.PENDING,
+            current_step=0,
+            total_steps=5,
+            message="Starting comic generation...",
+            created_at=datetime.now(timezone.utc),
+            updated_at=datetime.now(timezone.utc)
+        )
         
         # Start background task
         background_tasks.add_task(
@@ -79,22 +92,37 @@ async def start_comic_generation(
         )
 
 @router.get("/status/{job_id}", response_model=ComicResponse)
-async def check_status(job_id: str, db: AsyncSession = Depends(get_db)) -> ComicResponse:
+async def check_status(job_id: str, db: AsyncSession = Depends(get_db)) -> ComicProgress:
     """Check the status of a comic generation job."""
-    
-    comic_result = await db.execute(select(Comic).filter(Comic.id == job_id))
-    comic = comic_result.scalars().first()
-    if not comic:
+
+    if job_id not in jobs:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Job {job_id} not found"
         )
     
+    # comic_result = await db.execute(select(Comic).filter(Comic.id == job_id))
+    # comic = comic_result.scalars().first()
+    # if not comic:
+    #     raise HTTPException(
+    #         status_code=status.HTTP_404_NOT_FOUND,
+    #         detail=f"Job {job_id} not found"
+    #     )
+    
     # Retrieve the job status from the database
-    return ComicResponse(
-        success=True,
-        message="Job status retrieved",
-        data={"status": comic.status}  # Now only getting status from the DB
+    return ComicProgress(
+        id=job_id,
+        status=jobs[job_id].status,
+        current_step=jobs[job_id].current_step,
+        total_steps=jobs[job_id].total_steps,
+        message=jobs[job_id].message,
+        story=jobs[job_id].story,
+        panels=jobs[job_id].panels,
+        comic_url=jobs[job_id].comic_url,
+        audio_url=jobs[job_id].audio_url,
+        final_url=jobs[job_id].final_url,
+        created_at=jobs[job_id].created_at,
+        updated_at=datetime.now(timezone.utc)
     )
 
 
@@ -107,6 +135,12 @@ async def process_comic_generation(job_id: str, story_prompt: StoryPrompt) -> No
     """
     db: AsyncSession = Depends(get_db)
     try:
+        if job_id not in jobs:
+            raise NoResultFound
+        jobs[job_id].status = ComicStatus.GENERATING_STORY
+        jobs[job_id].updated_at = datetime.now(timezone.utc)
+        jobs[job_id].current_step = 1
+        jobs[job_id].message = "Generating story..."
         
         # Step 1: Generate story
         story = await OpenAIService.generate_story(
@@ -126,7 +160,7 @@ async def process_comic_generation(job_id: str, story_prompt: StoryPrompt) -> No
                 )
                 
             comic.story_text = story
-            comic.status = ComicStatus.GENERATING_STORY
+            
             await db.commit()
             await db.refresh(comic)
         except NoResultFound:
@@ -135,8 +169,14 @@ async def process_comic_generation(job_id: str, story_prompt: StoryPrompt) -> No
                 detail=f"Comic with job ID {job_id} not found"
             )
 
+
         try:
-        
+            if job_id not in jobs:
+                raise NoResultFound
+            jobs[job_id].status = ComicStatus.GENERATING_PANELS
+            jobs[job_id].updated_at = datetime.now(timezone.utc)
+            jobs[job_id].current_step = 2
+            jobs[job_id].message = "Breaking story into panels..."
             # Step 2: Break story into panels
             panels_data = OpenAIService.break_story_into_panels(
                 story=story,
@@ -145,10 +185,77 @@ async def process_comic_generation(job_id: str, story_prompt: StoryPrompt) -> No
             if comic.data_info is None:
                 comic.data_info = {}
 
-            
-            
             # Update database with panel data
             comic.data_info['panels_data'] = panels_data
+            await db.commit()
+            await db.refresh(comic)
+        except NoResultFound:            
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Comic with job ID {job_id} not found"
+            )
+        except Exception as e:
+            jobs[job_id].status = ComicStatus.FAILED
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to break story into panels: {str(e)}"
+            )
+            
+        
+
+        try:
+            if job_id not in jobs:
+                raise NoResultFound
+            jobs[job_id].status = ComicStatus.GENERATING_IMAGES
+            jobs[job_id].updated_at = datetime.now(timezone.utc)
+            jobs[job_id].current_step = 3
+            jobs[job_id].message = "Generating panel images..."
+            
+            # Process all panels in parallel
+            panel_tasks = [process_panel(job_id, panel_data, i) for i, panel_data in enumerate(panels_data)]
+            panels = await asyncio.gather(*panel_tasks)
+
+            comic.data_info.update({
+                "panel_images": [panel.image_url for panel in panels]
+            })
+            # Bulk insert panels into database
+            db.add_all(panels)
+            await db.commit()
+            for panel in panels:
+                await db.refresh(panel)
+        except NoResultFound:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Comic with job ID {job_id} not found"
+            )
+        except Exception as e:
+            jobs[job_id].status = ComicStatus.FAILED
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to generate panel images: {str(e)}"
+            )
+            
+        try: 
+            if job_id not in jobs:
+                raise NoResultFound
+                
+            jobs[job_id].status = ComicStatus.GENERATING_AUDIO
+            jobs[job_id].updated_at = datetime.now(timezone.utc)
+            jobs[job_id].current_step = 4
+            jobs[job_id].message = "Generating voiceover..."
+                
+            # Generate voiceover
+            audio_data = await OpenAIService.generate_voiceover(story)
+            
+            # Save audio to Azure Blob Storage
+            audio_path = f"comics/{job_id}/voiceover.mp3"
+            audio_blob_url = await ImageService.upload_to_blob_storage(audio_data, audio_path)
+            
+            comic.audio_url = audio_blob_url
+            comic.data_info.update({
+                "audio_url": audio_blob_url,
+                "completed_at": datetime.now(timezone.utc)
+            })
             await db.commit()
             await db.refresh(comic)
         except NoResultFound:
@@ -156,68 +263,42 @@ async def process_comic_generation(job_id: str, story_prompt: StoryPrompt) -> No
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Comic with job ID {job_id} not found"
             )
-            
-        
-        # Generate images for each panel in parallel
-        async def process_panel(panel_data, index):
-            # Generate pixel art
-            image_data = await OpenAIService.generate_pixel_art(
-                description=panel_data["image_description"]
+        except Exception as e:
+            jobs[job_id].status = ComicStatus.FAILED
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to generate voiceover: {str(e)}"
             )
             
-            # Save to Azure Blob Storage
-            image_path = f"comics/{job_id}/panel_{index+1}.png"
-            blob_url = await ImageService.upload_to_blob_storage(image_data, image_path)
-            
-            return Panel(
-                id = str(uuid4()),
-                comic_id=job_id,
-                sequence=index+1,
-                text_content=panel_data["panel_text"],
-                description=panel_data["image_description"],
-                image_url=blob_url
-            )
-
-        # Process all panels in parallel
-        panel_tasks = [process_panel(panel_data, i) for i, panel_data in enumerate(panels_data)]
-        panels = await asyncio.gather(*panel_tasks)
-        
-        # Bulk insert panels into database
-        db.add_all(panels)
-        await db.commit()
-        for panel in panels:
-            await db.refresh(panel)
-            
-        # Generate voiceover
-        audio_data = await OpenAIService.generate_voiceover(story)
-        
-        # Save audio to Azure Blob Storage
-        audio_path = f"comics/{job_id}/voiceover.mp3"
-        audio_blob_url = await ImageService.upload_to_blob_storage(audio_data, audio_path)
-        
-            
-        # Update comic with final data
-        comic.status = ComicStatus.COMPLETED
-        comic.data_info.update({
-            "audio_url": audio_blob_url,
-            "completed_at": datetime.utcnow().isoformat()
-        })
-        await db.commit()
-        
-        # Update database and job progress
-        # comic_result = await db.execute(select(Comic).filter(Comic.id == job_id))
-        # comic = comic_result.scalars().first()
-        comic.status = ComicStatus.COMPLETED
-        comic.data_info.update({
-            "story": story
-        })
-        await db.commit()
-        
+        jobs[job_id].status = ComicStatus.COMPLETED
+        jobs[job_id].updated_at = datetime.now(timezone.utc)
+        jobs[job_id].current_step = 5
+        jobs[job_id].message = "Comic generation completed!"
         
     except Exception as e:
         logger.error(f"Error in comic generation: {str(e)}")
         raise
-        
+
+# Generate images for each panel in parallel
+async def process_panel(job_id, panel_data, index):
+    # Generate pixel art
+    image_data = await OpenAIService.generate_pixel_art(
+        description=panel_data["image_description"]
+    )
+
+    # Save to Azure Blob Storage
+    image_path = f"comics/{job_id}/panel_{index+1}.png"
+    blob_url = await ImageService.upload_to_blob_storage(image_data, image_path)
+
+    return Panel(
+        id = str(uuid4()),
+        comic_id=job_id,
+        sequence=index+1,
+        text_content=panel_data["panel_text"],
+        description=panel_data["image_description"],
+        image_url=blob_url
+    )
+
 @router.get("/comics/{comic_id}/panels")
 async def get_comic_panels(comic_id: int, db: AsyncSession = Depends(get_db)):
     """Get comic data with panels and metadata for display."""
@@ -248,7 +329,7 @@ async def get_comic_panels(comic_id: int, db: AsyncSession = Depends(get_db)):
             "creator": creator_name,
             "like_count": comic.like_count,
             "view_count": comic.view_count,
-            "audio_url": comic.data_info.get("audio_url") if comic.data_info else None,
+            "audio_url": comic.audio_url,
         },
         "panels": [
             {

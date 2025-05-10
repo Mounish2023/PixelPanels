@@ -1,78 +1,75 @@
-
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.orm import Session
-from sqlalchemy import func, desc
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
+from sqlalchemy import func, desc, or_
 from typing import List, Optional
 from app.database import get_db
-from app.models.database import Comic, User, Like, View
+from app.models.database import Comic, Like
 
 router = APIRouter()
 
-@router.get("/search")
+@router.get("/search", response_model=List[Comic])
 async def search_comics(
-    q: str,
-    user_id: Optional[str] = None,
-    job_id: Optional[str] = None,
-    db: Session = Depends(get_db)
+    q: Optional[str] = Query(None, description="Search query for title or text"),
+    user_id: Optional[int] = Query(None, description="Filter by user ID"),
+    job_id: Optional[int] = Query(None, description="Filter by job ID"),
+    db: AsyncSession = Depends(get_db)
 ):
-    query = db.query(Comic).filter(Comic.is_deleted == False)
-    
+    query = select(Comic).where(Comic.is_deleted == False)
     if q:
-        query = query.filter(
-            Comic.search_vector.ilike(f"%{q}%") |
-            Comic.metadata['content'].astext.ilike(f"%{q}%")
-        )
-    
-    if user_id:
-        query = query.filter(Comic.user_id == user_id)
-    
-    if job_id:
-        query = query.filter(Comic.id == job_id)
-        
-    return query.all()
+        pattern = f"%{q}%"
+        query = query.where(or_(
+            Comic.title.ilike(pattern),
+            Comic.story_text.ilike(pattern)
+        ))
+    if user_id is not None:
+        query = query.where(Comic.user_id == user_id)
+    if job_id is not None:
+        query = query.where(Comic.id == job_id)
 
-@router.get("/explore")
-async def explore_comics(db: Session = Depends(get_db)):
-    return db.query(Comic)\
-        .filter(Comic.is_deleted == False)\
-        .order_by(func.random())\
-        .limit(10)\
-        .all()
+    result = await db.execute(query)
+    return result.scalars().all()
 
-@router.get("/comics")
-async def list_comics(db: Session = Depends(get_db)):
-    return db.query(Comic)\
-        .filter(Comic.is_deleted == False)\
-        .order_by(func.random())\
-        .limit(20)\
-        .all()
+async def _fetch_comics(query, db: AsyncSession):
+    result = await db.execute(query)
+    return result.scalars().all()
 
-@router.get("/top")
-async def top_comics(db: Session = Depends(get_db)):
-    return db.query(Comic)\
-        .filter(Comic.is_deleted == False)\
-        .order_by(desc(Comic.view_count))\
-        .limit(10)\
-        .all()
+@router.get("/explore", response_model=List[Comic])
+async def explore_comics(db: AsyncSession = Depends(get_db)):
+    query = select(Comic)
+    query = query.where(Comic.is_deleted == False)
+    query = query.order_by(func.random()).limit(10)
+    return await _fetch_comics(query, db)
 
-@router.get("/likes/{user_id}")
-async def liked_comics(user_id: int, db: Session = Depends(get_db)):
-    return db.query(Comic)\
-        .join(Like)\
-        .filter(Like.user_id == user_id)\
-        .filter(Comic.is_deleted == False)\
-        .all()
+@router.get("/comics", response_model=List[Comic])
+async def list_comics(db: AsyncSession = Depends(get_db)):
+    query = select(Comic)
+    query = query.where(Comic.is_deleted == False)
+    query = query.order_by(func.random()).limit(20)
+    return await _fetch_comics(query, db)
 
-@router.get("/my-media/{user_id}")
-async def user_media(user_id: int, db: Session = Depends(get_db)):
-    return db.query(Comic)\
-        .filter(Comic.user_id == user_id)\
-        .filter(Comic.is_deleted == False)\
-        .all()
+@router.get("/top", response_model=List[Comic])
+async def top_comics(db: AsyncSession = Depends(get_db)):
+    query = select(Comic)
+    query = query.where(Comic.is_deleted == False)
+    query = query.order_by(desc(Comic.view_count)).limit(10)
+    return await _fetch_comics(query, db)
 
-@router.get("/trash/{user_id}")
-async def trash(user_id: int, db: Session = Depends(get_db)):
-    return db.query(Comic)\
-        .filter(Comic.user_id == user_id)\
-        .filter(Comic.is_deleted == True)\
-        .all()
+@router.get("/likes/{user_id}", response_model=List[Comic])
+async def liked_comics(user_id: int, db: AsyncSession = Depends(get_db)):
+    query = select(Comic)
+    query = query.join(Like, Comic.id == Like.comic_id)
+    query = query.where(Like.user_id == user_id, Comic.is_deleted == False)
+    return await _fetch_comics(query, db)
+
+@router.get("/my-media/{user_id}", response_model=List[Comic])
+async def user_media(user_id: int, db: AsyncSession = Depends(get_db)):
+    query = select(Comic)
+    query = query.where(Comic.user_id == user_id, Comic.is_deleted == False)
+    return await _fetch_comics(query, db)
+
+@router.get("/trash/{user_id}", response_model=List[Comic])
+async def trash(user_id: int, db: AsyncSession = Depends(get_db)):
+    query = select(Comic)
+    query = query.where(Comic.user_id == user_id, Comic.is_deleted == True)
+    return await _fetch_comics(query, db)

@@ -39,6 +39,7 @@ def upgrade():
         sa.Column('created_at', sa.DateTime(), server_default=sa.text('now()'), nullable=True),
         sa.Column('story_text', sa.String(length=5000), nullable=True),
         sa.Column('data_info', postgresql.JSON(), nullable=True),
+        sa.Column('audio_url', sa.String(length=255), nullable=True)
         sa.Column('user_id', sa.Integer(), nullable=True),
         sa.Column('is_deleted', sa.Boolean(), server_default='false', nullable=True),
         sa.Column('story_search_vector', sa.String(), nullable=True),

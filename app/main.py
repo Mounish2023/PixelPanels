@@ -5,20 +5,38 @@ from fastapi import FastAPI, HTTPException, BackgroundTasks, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from loguru import logger
-
+from contextlib import asynccontextmanager
 from app.config import settings
 from app.routes import comic_routes, interaction_routes, explore_routes
+from app.models.database import Base
+from app.database import engine
 
 # Configure logging
 logger.add("app.log", rotation="500 MB", level="INFO")
 
+async def create_db_and_tables():
+    """Create database and tables."""
+
+    Base.metadata.create_all(bind=engine)
+    logger.info("Database and tables created.")
+
 def create_app() -> FastAPI:
     """Create and configure the FastAPI application."""
+    
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        """Startup event handler."""
+        logger.info("Starting up...")
+        await create_db_and_tables()
+        yield
+        logger.info("Shutting down...")
+        
     app = FastAPI(
         title=settings.APP_NAME,
         description="AI Comic Creator API",
         version="0.1.0",
-        debug=settings.DEBUG
+        debug=settings.DEBUG,
+        lifespan=lifespan
     )
     
     # Configure CORS
@@ -55,7 +73,6 @@ def create_app() -> FastAPI:
         """Health check endpoint."""
         return {"status": "healthy"}
 
-    
     return app
 
 # Create the FastAPI application
