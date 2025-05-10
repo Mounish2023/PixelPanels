@@ -16,3 +16,4 @@ alembic
 sqlalchemy[asyncio]
 asyncpg
 azure-storage-blob
+replit-object-storage
