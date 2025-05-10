@@ -4,7 +4,7 @@ from sqlalchemy.future import select
 from sqlalchemy import func, desc, or_
 from typing import List, Optional
 from app.database import get_db
-from app.models.database import Comic, Like
+from app.models.database import Comic, Like, Favorite
 
 router = APIRouter()
 
@@ -66,6 +66,13 @@ async def liked_comics(user_id: int, db: AsyncSession = Depends(get_db)):
 async def user_media(user_id: int, db: AsyncSession = Depends(get_db)):
     query = select(Comic)
     query = query.where(Comic.user_id == user_id, Comic.is_deleted == False)
+    return await _fetch_comics(query, db)
+
+@router.get("/favorites/{user_id}", response_model=List[Comic])
+async def favorites(user_id: int, db: AsyncSession = Depends(get_db)):
+    query = select(Comic)
+    query = query.join(Favorite, Comic.id == Favorite.comic_id)
+    query = query.where(Favorite.user_id == user_id, Comic.is_deleted == False)
     return await _fetch_comics(query, db)
 
 @router.get("/trash/{user_id}", response_model=List[Comic])
