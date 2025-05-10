@@ -16,13 +16,13 @@ logger.add("app.log", rotation="500 MB", level="INFO")
 
 async def create_db_and_tables():
     """Create database and tables."""
-
-    Base.metadata.create_all(bind=engine)
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
     logger.info("Database and tables created.")
 
 def create_app() -> FastAPI:
     """Create and configure the FastAPI application."""
-    
+
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         """Startup event handler."""
@@ -30,7 +30,7 @@ def create_app() -> FastAPI:
         await create_db_and_tables()
         yield
         logger.info("Shutting down...")
-        
+
     app = FastAPI(
         title=settings.APP_NAME,
         description="AI Comic Creator API",
@@ -38,7 +38,7 @@ def create_app() -> FastAPI:
         debug=settings.DEBUG,
         lifespan=lifespan
     )
-    
+
     # Configure CORS
     app.add_middleware(
         CORSMiddleware,
@@ -47,26 +47,26 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
-    
+
     # Include API routes
     app.include_router(
         comic_routes.router,
         prefix="/api/v1/comics",
         tags=["comics"]
     )
-    
+
     app.include_router(
         interaction_routes.router,
         prefix="/api/v1/interactions",
         tags=["interactions"]
     )
-    
+
     app.include_router(
         explore_routes.router,
         prefix="/api/v1/explore",
         tags=["explore"]
     )
-    
+
     # Health check endpoint
     @app.get("/health")
     async def health_check():
