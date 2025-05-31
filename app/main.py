@@ -1,9 +1,7 @@
 """Main FastAPI application."""
-import os
-import uuid
-from fastapi import FastAPI, HTTPException, BackgroundTasks, Depends
+
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
 from loguru import logger
 from contextlib import asynccontextmanager
 from app.config import settings

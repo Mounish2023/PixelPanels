@@ -22,7 +22,7 @@ from app.models.comic_models import (
 from app.models.database import Comic, Panel, User, Like, View, Favorite, Trash
 from app.database import get_db
 from app.services.openai_service import OpenAIService
-from app.services.image_service import ImageService
+from app.services.media_service import MediaService
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
@@ -91,7 +91,7 @@ async def start_comic_generation(
             detail=f"Failed to start comic generation: {str(e)}"
         )
 
-@router.get("/status/{job_id}", response_model=ComicResponse)
+@router.get("/status/{job_id}", response_model=ComicProgress)
 async def check_status(job_id: str, db: AsyncSession = Depends(get_db)) -> ComicProgress:
     """Check the status of a comic generation job."""
 
@@ -116,11 +116,6 @@ async def check_status(job_id: str, db: AsyncSession = Depends(get_db)) -> Comic
         current_step=jobs[job_id].current_step,
         total_steps=jobs[job_id].total_steps,
         message=jobs[job_id].message,
-        story=jobs[job_id].story,
-        panels=jobs[job_id].panels,
-        comic_url=jobs[job_id].comic_url,
-        audio_url=jobs[job_id].audio_url,
-        final_url=jobs[job_id].final_url,
         created_at=jobs[job_id].created_at,
         updated_at=datetime.now(timezone.utc)
     )
@@ -219,6 +214,7 @@ async def process_comic_generation(job_id: str, story_prompt: StoryPrompt) -> No
                 "panel_images": [panel.image_url for panel in panels]
             })
             # Bulk insert panels into database
+            comic.thumbnail_url =panels[0].image_url
             db.add_all(panels)
             await db.commit()
             for panel in panels:
@@ -248,8 +244,8 @@ async def process_comic_generation(job_id: str, story_prompt: StoryPrompt) -> No
             audio_data = await OpenAIService.generate_voiceover(story)
             
             # Save audio to Azure Blob Storage
-            audio_path = f"comics/{job_id}/voiceover.mp3"
-            audio_blob_url = await ImageService.upload_to_blob_storage(audio_data, audio_path)
+            audio_path = f"comics/{job_id}/audio/voiceover.mp3"
+            audio_blob_url = await MediaService.upload_audio(audio_data, audio_path)
             
             comic.audio_url = audio_blob_url
             comic.data_info.update({
@@ -287,8 +283,8 @@ async def process_panel(job_id, panel_data, index):
     )
 
     # Save to Azure Blob Storage
-    image_path = f"comics/{job_id}/panel_{index+1}.png"
-    blob_url = await ImageService.upload_to_blob_storage(image_data, image_path)
+    image_path = f"comics/{job_id}/images/panel_{index+1}.png"
+    blob_url = await MediaService.upload_image(image_data, image_path)
 
     return Panel(
         id = str(uuid4()),

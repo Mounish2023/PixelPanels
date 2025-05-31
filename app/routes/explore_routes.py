@@ -5,30 +5,31 @@ from sqlalchemy import func, desc, or_
 from typing import List, Optional
 from app.database import get_db
 from app.models.database import Comic, Like, Favorite
+from app.models.comic_models import searchComicResponse
 
 router = APIRouter()
 
-@router.get("/search", response_model=List[Comic])
+@router.get("/search", response_model=List[searchComicResponse])
 async def search_comics(
-    q: Optional[str] = Query(None, description="Search query for title or text"),
-    user_id: Optional[int] = Query(None, description="Filter by user ID"),
-    job_id: Optional[int] = Query(None, description="Filter by job ID"),
+    q:str = Query( description="Search query for title or text"),
     db: AsyncSession = Depends(get_db)
 ):
-    query = select(Comic).where(Comic.is_deleted == False)
-    if q:
-        pattern = f"%{q}%"
-        query = query.where(or_(
-            Comic.title.ilike(pattern),
-            Comic.story_text.ilike(pattern)
-        ))
-    if user_id is not None:
-        query = query.where(Comic.user_id == user_id)
-    if job_id is not None:
-        query = query.where(Comic.id == job_id)
+    query = (
+        select(Comic, User.username.label("creator_name"))
+        .join(User, Comic.user_id == User.id)
+        .filter(Comic.id == comic_id)
+    )
+    query = select(Comic).where(Comic.is_deleted == False)            
 
+    pattern = f"%{q}%"
+    query = query.where(or_(
+        Comic.title.ilike(pattern),
+        Comic.story_text.ilike(pattern)
+    ))
     result = await db.execute(query)
     return result.scalars().all()
+
+    
 
 async def _fetch_comics(query, db: AsyncSession):
     result = await db.execute(query)

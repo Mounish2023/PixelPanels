@@ -14,6 +14,10 @@ class Settings(BaseSettings):
     APP_NAME: str = "PixelPanels"
     DEBUG: bool = os.getenv("DEBUG", "False").lower() in ("true", "1", "t")
     DATABASE_URL: str = os.getenv("DATABASE_URL", "postgresql+asyncpg://user:password@localhost:5432/pixelpanels")
+    STORAGE_ACCOUNT_URL: str = os.getenv("STORAGE_ACCOUNT_URL", "")
+    STORAGE_ACCOUNT_KEY: str = os.getenv("STORAGE_ACCOUNT_KEY", "")
+    STORAGE_ACCOUNT_NAME: str = os.getenv("STORAGE_ACCOUNT_NAME", "")
+    CONTAINER_NAME: str = os.getenv("CONTAINER_NAME", "comics")
     
     # API settings
     API_V1_STR: str = "/api/v1"

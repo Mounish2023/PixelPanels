@@ -29,6 +29,7 @@ class Comic(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     title: Mapped[str] = mapped_column(String(100), nullable=False)
+    thumbnail_url: Mapped[Optional[str]] = mapped_column(String(255))
     prompt: Mapped[str] = mapped_column(String(500), nullable=False)
     prompt_data_info: Mapped[Optional[dict]] = mapped_column(JSON)
     topic: Mapped[Optional[str]] = mapped_column(String(50))
