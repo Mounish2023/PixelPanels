@@ -6,7 +6,6 @@ import openai
 from loguru import logger
 from jinja2 import Template
 from app.config import settings
-from app.models.comic_models import Panel, ComicStatus
 import base64
 
 # client = OpenAI()
@@ -36,8 +35,8 @@ class OpenAIService:
         """
         character_prompt = f"Include these characters: {', '.join(character_names)}. " if character_names else ""
         
-        system_prompt = Template("""Create a short, engaging children's story in the style of {{style}}. 
-        The story should be appropriate for children, with a clear beginning, middle, and end.
+        system_prompt = Template("""Create a short, engaging story as per the user request in the style of {{style}}. 
+        The story should have a clear beginning, middle, and end.
         {{character_prompt}}
         Keep it concise yet engaging, suitable for a {{num_panels}} panel comic book.""")
         
@@ -53,7 +52,7 @@ class OpenAIService:
                 model="gpt-4o",
                 messages=[
                     {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": prompt}
+                    {"role": "user", "content": "user request: " + prompt}
                 ],
                 max_tokens=1000
             )

@@ -1,9 +1,9 @@
 """File handling utilities."""
-import os
+
 import shutil
-import uuid
+
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Tuple
 from loguru import logger
 
 from app.config import settings
@@ -21,15 +21,16 @@ def create_project_dirs(project_id: str) -> Tuple[Path, Path, Path, Path]:
     Returns:
         Tuple of (base_dir, images_dir, audio_dir, output_dir)
     """
-    base_dir = settings.STORAGE_DIR / project_id
+    base_dir = Path(project_id)
+    temp_dir = base_dir / "temp"
     images_dir = base_dir / "images"
     audio_dir = base_dir / "audio"
     output_dir = base_dir / "output"
     
-    for dir_path in [base_dir, images_dir, audio_dir, output_dir]:
+    for dir_path in [base_dir, temp_dir, images_dir, audio_dir, output_dir]:
         dir_path.mkdir(exist_ok=True, parents=True)
     
-    return base_dir, images_dir, audio_dir, output_dir
+    return base_dir, temp_dir, images_dir, audio_dir, output_dir
 
 def cleanup_project(project_id: str) -> bool:
     """Remove all files and directories for a project."""

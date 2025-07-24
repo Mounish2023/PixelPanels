@@ -36,9 +36,8 @@ class ComicProgress(BaseModel):
     message: str
     story: Optional[str] = None
     panels: Optional[List[Panel]] = None
-    comic_url: Optional[str] = None
+    panel_image_urls: Optional[List[str]] = None
     audio_url: Optional[str] = None
-    final_url: Optional[str] = None
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
 

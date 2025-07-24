@@ -1,4 +1,4 @@
-fastapi
+fastapi[all]
 uvicorn
 openai
 python-multipart
@@ -12,3 +12,6 @@ pydantic-settings
 opencv-python-headless
 moviepy
 numpy
+scalar-fastapi
+azure-storage-blob
+aiohttp
