@@ -6,14 +6,18 @@ from uuid import uuid4
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, status
 from loguru import logger
+import os
 
 from app.models.comic_models import (
     ComicProgress,
+    StoryPrompt,
     ComicResponse,
     ComicStatus,
     Panel,
     StoryPrompt,
 )
+from app.models.database import Comic, Panel, User, Like, View, Favorite, Trash
+from app.database import get_db
 from app.services.openai_service import OpenAIService
 from app.utils.file_utils import create_project_dirs
 from app.database import BlobContainerClientSingleton
@@ -65,6 +69,7 @@ async def start_comic_generation(
 @router.get("/status/{job_id}", response_model=ComicResponse)
 async def check_status(job_id: str) -> ComicResponse:
     """Check the status of a comic generation job."""
+
     if job_id not in jobs:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail=f"Job {job_id} not found"
@@ -221,14 +226,23 @@ async def process_comic_generation(job_id: str, story_prompt: StoryPrompt) -> No
     except Exception as e:
         logger.error(f"Error in comic generation: {str(e)}")
         if job_id in jobs:
-            jobs[job_id].update(
-                {
-                    "status": ComicStatus.FAILED,
-                    "message": f"Failed to generate comic: {str(e)}",
-                }
-            )
+            jobs[job_id].update({
+                "status": ComicStatus.FAILED,
+                "message": f"Failed to generate comic: {str(e)}"
+            })
         # Never clean up project files - keep all outputs
-        logger.info(f"Project files preserved at {job_id}")
+        logger.info(f"Project files preserved at {base_dir}")
         raise
 
-
+@router.get("/files/{project_id}/{file_type}/{filename}")
+async def serve_file(project_id: str, file_type: str, filename: str):
+    """Serve generated files."""
+    try:
+        file_path = settings.STORAGE_DIR / project_id / file_type / filename
+        if not file_path.exists():
+            raise HTTPException(status_code=404, detail="File not found")
+        
+        return FileResponse(file_path)
+    except Exception as e:
+        logger.error(f"Error serving file {filename}: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to serve file")

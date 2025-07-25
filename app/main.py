@@ -4,7 +4,7 @@ from scalar_fastapi import get_scalar_api_reference
 from fastapi.middleware.cors import CORSMiddleware
 
 from loguru import logger
-
+from contextlib import asynccontextmanager
 from app.config import settings
 from app.routes import comic_routes
 from contextlib import asynccontextmanager
@@ -21,14 +21,25 @@ async def lifespan(app: FastAPI):
 
 def create_app() -> FastAPI:
     """Create and configure the FastAPI application."""
+
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        """Startup event handler."""
+        logger.info("Starting up...")
+        await create_db_and_tables()
+        yield
+        logger.info("Shutting down...")
+
     app = FastAPI(
         title=settings.APP_NAME,
         description="AI Comic Creator API",
         version="0.1.0",
         debug=settings.DEBUG,
         lifespan=lifespan
+        debug=settings.DEBUG,
+        lifespan=lifespan
     )
-    
+
     # Configure CORS
     app.add_middleware(
         CORSMiddleware,
@@ -37,14 +48,26 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
-    
+
     # Include API routes
     app.include_router(
         comic_routes.router,
         prefix="/api/v1/comics",
         tags=["comics"]
     )
-    
+
+    app.include_router(
+        interaction_routes.router,
+        prefix="/api/v1/interactions",
+        tags=["interactions"]
+    )
+
+    app.include_router(
+        explore_routes.router,
+        prefix="/api/v1/explore",
+        tags=["explore"]
+    )
+
     # Health check endpoint
     @app.get("/health")
     async def health_check():
